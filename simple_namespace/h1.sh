@@ -17,6 +17,8 @@ mount -o bind $MOCK/srv /lxc/host1/srv
 mount -o bind $MOCK/tmp /lxc/host1/tmp
 mount -o bind $MOCK/usr /lxc/host1/usr
 mount -o bind $MOCK/var /lxc/host1/var
+# ltp
+mount -o bind /opt /lxc/host1/opt
 
 mount none -t proc /lxc/host1/proc
 mount none -t sysfs /lxc/host1/sys
