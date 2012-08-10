@@ -9,7 +9,7 @@ fi
 
 host="$1";
 
-for i in bin dev etc home lib* media mnt opt proc root sbin srv tmp usr var; do
+for i in bin dev etc home lib* media mnt opt root sbin srv tmp usr var; do
 	mkdir -p $CONTAINER_ROOT/$host/$i;
 	mount -o bind $MOCK/$i $CONTAINER_ROOT/$host/$i;
 done
