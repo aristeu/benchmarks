@@ -33,8 +33,9 @@ function get_free_inetaddr
 }
 
 host=$1;
+CONTAINER_ROOT=/lxc;
 CGROUP_NAME=$host;
-CGROUP_PATH=/sys/fs/cgroup;
+CGROUP_PATH=/sys/fs/cgroup/cpu,cpuacct/;
 CGROUP=$CGROUP_PATH/$CGROUP_NAME;
 IFACE1="$host"-system;
 IFACE2="$host"-guest;
@@ -50,8 +51,8 @@ ifconfig $IFACE2 $IP2 netmask 255.255.255.0 up;
 echo 1 >/proc/sys/net/ipv4/ip_forward;
 iptables -t nat -I POSTROUTING -s $IP2 -d 0.0.0.0/0 -j MASQUERADE;
 
-$PWD/finish_networking.sh $CGROUP_PATH $CGROUP_NAME $IFACE2 &
 mkdir -p $CGROUP;
+$PWD/finish_networking.sh $CGROUP_PATH $CGROUP_NAME $IFACE2 &
 
-chroot $CONTAINER_ROOT/$host /shell.sh $host $CGROUP_PATH/$CGROUP_NAME;
+chroot $CONTAINER_ROOT/$host /shell.sh $host $CGROUP_PATH/$CGROUP_NAME $IFACE2 $IP2 $IP1;
 
