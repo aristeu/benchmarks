@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -z "$1" ]; then
-	echo "$0 hostname" >&2;
+	echo "$0 hostname [command]" >&2;
 	exit 1;
 fi
 
@@ -33,6 +33,7 @@ function get_free_inetaddr
 }
 
 host=$1;
+COMMAND="$2";
 CONTAINER_ROOT=/lxc;
 CGROUP_NAME=$host;
 CGROUP_PATH=/sys/fs/cgroup/cpu,cpuacct/;
@@ -44,7 +45,7 @@ IP1=$IP_BASE.1;
 IP2=$IP_BASE.2;
 
 
-rm -Rf $CGROUP;
+find $CGROUP/ -type d -delete;
 ip link add name $IFACE1 type veth peer name $IFACE2;
 ifconfig $IFACE1 $IP1 netmask 255.255.255.0 up;
 ifconfig $IFACE2 $IP2 netmask 255.255.255.0 up;
@@ -54,5 +55,5 @@ iptables -t nat -I POSTROUTING -s $IP2 -d 0.0.0.0/0 -j MASQUERADE;
 mkdir -p $CGROUP;
 $PWD/finish_networking.sh $CGROUP_PATH $CGROUP_NAME $IFACE2 &
 
-chroot $CONTAINER_ROOT/$host /shell.sh $host $CGROUP_PATH/$CGROUP_NAME $IFACE2 $IP2 $IP1;
+chroot $CONTAINER_ROOT/$host /shell.sh $host $CGROUP_PATH/$CGROUP_NAME $IFACE2 $IP2 $IP1 $COMMAND;
 
