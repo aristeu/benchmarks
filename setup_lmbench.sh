@@ -5,7 +5,7 @@ function die
 	exit 1;
 }
 
-mkdir -p /opt && cd opt || die "creating /opt";
+mkdir -p /opt && cd /opt || die "creating /opt";
 
 (wget -o /dev/null -O - http://www.bitmover.com/lmbench/lmbench3.tar.gz | tar xvz -) || die "downloading lmbench";
 cd lmbench3
