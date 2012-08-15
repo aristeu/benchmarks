@@ -5,7 +5,7 @@ if [ -z "$1" ]; then
 	exit 1;
 fi
 OPTS=$(getopt -n $0 -o "n"-- "$@");
-if [ $? = 0 ]; then
+if [ ! $? = 0 ]; then
 	exit 1;
 fi
 
@@ -16,6 +16,10 @@ while true; do
 		-n)
 			no_network=1;
 			shift;
+		;;
+		--)
+			shift;
+			break;
 		;;
 	esac
 	shift;
