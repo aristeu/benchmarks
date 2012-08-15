@@ -17,6 +17,9 @@ echo $$ >$cgroup/tasks;
 hostname $host;
 
 for i in $(seq 1 10); do
+	if [ "$iface" = "none" ]; then
+		break;
+	fi
 	if [ -n "$(ifconfig -a | grep $iface)" ]; then
 		ifconfig $iface $ip netmask 255.255.255.0 up;
 		route add default gw $router;

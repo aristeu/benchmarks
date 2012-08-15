@@ -1,9 +1,25 @@
 #!/bin/bash
 
 if [ -z "$1" ]; then
-	echo "$0 hostname [command]" >&2;
+	echo "$0 hostname [-n] [command]" >&2;
 	exit 1;
 fi
+OPTS=$(getopt -n $0 -o "n"-- "$@");
+if [ $? = 0 ]; then
+	exit 1;
+fi
+
+no_network=0;
+eval set -- $OPTS;
+while true; do
+	case "$1" in
+		-n)
+			no_network=1;
+			shift;
+		;;
+	esac
+	shift;
+done
 
 function get_free_inetaddr
 {
@@ -32,6 +48,7 @@ function get_free_inetaddr
 	exit 1;
 }
 
+
 host=$1;
 COMMAND="$2";
 CONTAINER_ROOT=/lxc;
@@ -40,20 +57,24 @@ CGROUP_PATH=/sys/fs/cgroup/cpu,cpuacct/;
 CGROUP=$CGROUP_PATH/$CGROUP_NAME;
 IFACE1="$host"-system;
 IFACE2="$host"-guest;
-IP_BASE=$(get_free_inetaddr);
 IP1=$IP_BASE.1;
 IP2=$IP_BASE.2;
 
 
 find $CGROUP/ -type d -delete >/dev/null 2>&1;
-ip link add name $IFACE1 type veth peer name $IFACE2;
-ifconfig $IFACE1 $IP1 netmask 255.255.255.0 up;
-ifconfig $IFACE2 $IP2 netmask 255.255.255.0 up;
-echo 1 >/proc/sys/net/ipv4/ip_forward;
-iptables -t nat -I POSTROUTING -s $IP2 -d 0.0.0.0/0 -j MASQUERADE;
-
 mkdir -p $CGROUP;
-$PWD/finish_networking.sh $CGROUP_PATH $CGROUP_NAME $IFACE2 &
+
+if [ $no_network = 0 ]; then
+	IP_BASE=$(get_free_inetaddr);
+	ip link add name $IFACE1 type veth peer name $IFACE2;
+	ifconfig $IFACE1 $IP1 netmask 255.255.255.0 up;
+	ifconfig $IFACE2 $IP2 netmask 255.255.255.0 up;
+	echo 1 >/proc/sys/net/ipv4/ip_forward;
+	iptables -t nat -I POSTROUTING -s $IP2 -d 0.0.0.0/0 -j MASQUERADE;
+	$PWD/finish_networking.sh $CGROUP_PATH $CGROUP_NAME $IFACE2 &
+else
+	IFACE2="none";
+fi
 
 chroot $CONTAINER_ROOT/$host /shell.sh $host $CGROUP_PATH/$CGROUP_NAME $IFACE2 $IP2 $IP1 $COMMAND;
 
