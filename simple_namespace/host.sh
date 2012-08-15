@@ -18,9 +18,9 @@ mkdir -p $CONTAINER_ROOT/$host/proc $CONTAINER_ROOT/$host/sys;
 mount none -t proc $CONTAINER_ROOT/$host/proc
 mount none -t sysfs $CONTAINER_ROOT/$host/sys
 mount none -t tmpfs $CONTAINER_ROOT/$host/sys/fs/cgroup
-#for i in blkio cpu cpuacct cpu,cpuacct cpuset devices freezer memory net_cls perf_event; do
-#	mkdir -p $CONTAINER_ROOT/$host/sys/fs/cgroup/$i;
-#	mount none -t cgroup -o $i $CONTAINER_ROOT/$host/sys/fs/cgroup/$i;
-#done
+for i in blkio cpu cpuacct cpu,cpuacct cpuset devices freezer memory net_cls perf_event; do
+	mkdir -p $CONTAINER_ROOT/$host/sys/fs/cgroup/$i;
+	mount none -t cgroup -o $i $CONTAINER_ROOT/$host/sys/fs/cgroup/$i >/dev/null 2>&1;
+done
 
 cp shell.sh stage2.sh $CONTAINER_ROOT/$host;
