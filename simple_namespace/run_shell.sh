@@ -1,10 +1,10 @@
 #!/bin/bash
 
 if [ -z "$1" ]; then
-	echo "$0 hostname [-n] [command]" >&2;
+	echo "$0 -H hostname [-n] [-C command]" >&2;
 	exit 1;
 fi
-OPTS=$(getopt -n $0 -o "n"-- "$@");
+OPTS=$(getopt -n $0 -o "nH:C:"-- "$@");
 if [ ! $? = 0 ]; then
 	exit 1;
 fi
@@ -15,6 +15,14 @@ while true; do
 	case "$1" in
 		-n)
 			no_network=1;
+			shift;
+		;;
+		-H)
+			host=$optarg;
+			shift;
+		;;
+		-C)
+			COMMAND=$optarg;
 			shift;
 		;;
 		--)
@@ -53,8 +61,6 @@ function get_free_inetaddr
 }
 
 
-host=$1;
-COMMAND="$2";
 CONTAINER_ROOT=/lxc;
 CGROUP_NAME=$host;
 CGROUP_PATH=/sys/fs/cgroup/cpu,cpuacct/;
