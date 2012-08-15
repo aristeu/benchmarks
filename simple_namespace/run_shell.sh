@@ -45,7 +45,7 @@ IP1=$IP_BASE.1;
 IP2=$IP_BASE.2;
 
 
-find $CGROUP/ -type d -delete;
+find $CGROUP/ -type d -delete >/dev/null 2>&1;
 ip link add name $IFACE1 type veth peer name $IFACE2;
 ifconfig $IFACE1 $IP1 netmask 255.255.255.0 up;
 ifconfig $IFACE2 $IP2 netmask 255.255.255.0 up;
