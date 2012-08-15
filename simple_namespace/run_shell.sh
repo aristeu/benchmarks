@@ -4,7 +4,7 @@ if [ -z "$1" ]; then
 	echo "$0 -H hostname [-n] [-C command]" >&2;
 	exit 1;
 fi
-OPTS=$(getopt -n $0 -o "nH:C:"-- "$@");
+OPTS=$(getopt -n $0 -o "nH:C:" -- "$@");
 if [ ! $? = 0 ]; then
 	exit 1;
 fi
@@ -15,14 +15,13 @@ while true; do
 	case "$1" in
 		-n)
 			no_network=1;
-			shift;
 		;;
 		-H)
-			host=$optarg;
+			host=$2;
 			shift;
 		;;
 		-C)
-			COMMAND=$optarg;
+			COMMAND=$2;
 			shift;
 		;;
 		--)
