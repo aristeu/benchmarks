@@ -4,9 +4,39 @@ CGROUPFS=/sys/fs/cgroup;
 findargs="-maxdepth 5 -mindepth 1";
 subsys_list="devices";
 START_FILE=/tmp/go;
+LABELLOOP_COUNT=400
+CGROUPLOOP_COUNT=100
 
 rm -f $START_FILE;
 dir=$(mktemp -d);
+
+if [ ! -d ${CGROUPFS} ]; then
+	if osver=$(rpm -q --qf '%{version}\n' --whatprovides redhat-release); then
+		if [[ $osver < 6 ]]; then
+			echo "cgroups isn't supported on rhel$osver"
+			exit 1
+		else
+			CGROUPFS="/cgroup"
+			if ! rpm -q libcgroup 2>&1 > /dev/null; then
+				yum -y install libcgroup
+			fi
+			# libcgroup should be installed by now
+			if ! rpm -q libcgroup 2>&1 > /dev/null; then
+				echo "libcgroup needed but can't be found/installed"
+				exit 1
+			fi
+			# cgconfig need to be running
+			cgstatus=$(service cgconfig status)
+			if [[ x"$cgstatus" != "xRunning" ]]; then
+				if ! service cgconfig start; then
+					echo "Problem starting cgconfig"
+					exit 1
+				fi
+			fi
+		fi
+				
+	fi
+fi
 
 function wait_start
 {
@@ -129,14 +159,14 @@ function test_devices
 	echo a >$CGROUPFS/devices/devices.allow;
 }
 
-for i in $(seq 1 50); do
+for i in $(seq 1 $CGROUPLOOP_COUNT); do
 	create_cgroup 2>/dev/null &
 	remove_cgroup 2>/dev/null &
 	test_devices 2>/dev/null &
 	true;
 	echo -n ".";
 done
-for i in $(seq 1 200); do
+for i in $(seq 1 $LABELLOOP_COUNT); do
 	change_label 2>/dev/null &
 	true;
 	echo -n ".";
