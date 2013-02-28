@@ -156,7 +156,8 @@ struct stresser_config {
 	} stress_type;
 
 	/** pick the unit based on chance of n of 10 passed in
-	    stresser_unit.chance, ignores stresser_unit.number */
+	    stresser_unit.chance, ignores stresser_unit.number.
+	    Must have 2 or more units to use chance */
 	bool use_chance;
 };
 
@@ -165,18 +166,19 @@ struct stresser_unit {
 		unsigned int number;	/* number of threads */
 		unsigned char chance;	/* unit chance in 10 of running */
 	};
-	/** if stresser_config.threads is set and stresser_unit.chance is not
+	/** if stresser_config.threads is set and stresser_unit.chance are not
 	    set, determines the proportion 1-100 of this unit's threads. this
 	    allows creating tests that 1/4 of the threads are x, 2/4 are y and
 	    the another 1/4 are z, no matter the total number of threads */
 	unsigned char proportion;
-	
+	int (*fn)(void *priv);
 };
 struct stresser_priv {
 	void *fnpriv;		/* function private data */
 	int fnrc;		/* function retval */
 	bool wait;		/* conditional wait? */
 	pthread_cond_t *cond;	/* conditional wait */
+	pthread_mutex_t *mutex;	/* conditional wait mutex */
 	struct stresser_unit *u /* stresser unit */
 };
 
@@ -201,7 +203,14 @@ static int stresser(struct stress_config *cfg, struct stresser_unit *set,
 {
 	struct stresser_priv *priv;
 	pthread_cont_t cond = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 	int threads, i;
+
+	/* sanity checks */
+	if (cfg->use_chance && n_unit < 2)
+		return EINVAL;
+	if (n_unit == 0)
+		return EINVAL;
 
 	/* first determine the total number of threads */
 	if (cfg->threads)
@@ -211,15 +220,55 @@ static int stresser(struct stress_config *cfg, struct stresser_unit *set,
 		for (i = 0; i < n_unit; i++)
 			threads += set[i].number;
 		if (threads == 0)
-			return -EINVAL;
+			return EINVAL;
 	}
 
 	/* allocating private structures */
 	priv = calloc(sizeof(*priv), threads);
 	if (priv == NULL)
-		return -ENOMEM;
+		return ENOMEM;
 
 
+	for (i = 0; i < threads; i++) {
+		priv[i].fnpriv = fnpriv;
+
+		/* prepare the conditional wait if needed */
+		if (cfg->stress_type == STRESS_HORDE) {
+			priv[i].cond = &cond;
+			priv[i].mutex = &mutex;
+			priv[i].wait = true;
+		}
+
+		/* if units have chance to happen */
+		if (cfg->use_chance == true) {
+			int u, highest = 0;
+			for (u = 0; u < n_unit; u++) {
+				if (!(rand() % set[u].chance)) {
+					highest = u;
+					break;
+				}
+				if (set[u].chance > set[highest].chance)
+					highest = u;
+			}
+			priv[i].unit = &set[highest];
+		/* fixed number of unit runs */
+		} else if (!cfg->threads) {
+			int u;
+			for (u = 0; u < n_unit; u++)
+				if (set[u].number)
+					break;
+			if (u == n_unit) {
+				fprintf(stderr, "Internal error: %s:%i\n",
+					__FILE__, __LINE__);
+				exit(1);
+			}
+			priv[i].unit = &set[u];
+			set[u].number--;
+		/* proportional unit runs */
+		} else {
+
+		}
+	}
 }
 /* */
 
