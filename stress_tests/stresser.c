@@ -22,6 +22,7 @@
 #define __USE_GNU 1
 #include <pthread.h>
 #include <errno.h>
+#include <string.h>
 #include <sys/types.h>
 #include "stresser.h"
 
@@ -180,7 +181,8 @@ int stresser(struct stresser_config *cfg, struct stresser_unit *set,
 		if (!pthread_join(priv[i].thread, NULL))
 			if (priv[i].fnrc) {
 				fprintf(stderr, "Thread %i returned error "
-					"(%i)\n", i, priv[i].fnrc);
+					"(%i, %s)\n", i, priv[i].fnrc,
+					strerror(priv[i].fnrc));
 				rc = 1;
 			}
 	}
