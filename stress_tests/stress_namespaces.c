@@ -43,18 +43,30 @@
 #define CLONE_NEWPID	0x20000000
 #endif
 
+#ifdef HAS_USERNS
 #ifndef CLONE_NEWUSER
 #define CLONE_NEWUSER	0x10000000
 #endif
 
 #define NS_NUM 6
+
+#define ALL_NAMESPACES (CLONE_NEWNS|CLONE_NEWIPC|CLONE_NEWNET|CLONE_NEWUTS|CLONE_NEWPID|CLONE_NEWUSER)
+
+#else	/* !HAS_USERNS */
+
+#define NS_NUM 5
+
+#define ALL_NAMESPACES (CLONE_NEWNS|CLONE_NEWIPC|CLONE_NEWNET|CLONE_NEWUTS|CLONE_NEWPID)
+
+#endif	/* HAS_USERNS */
+
 enum nsid {
 	IPC = 0,
 	MNTNS,
 	NETNS,
 	PIDNS,
-	USERNS,
 	UTSNS,
+	USERNS,
 };
 
 const char *nsnames[] = {
@@ -62,16 +74,25 @@ const char *nsnames[] = {
 	[MNTNS] = "mnt",
 	[NETNS] = "netns",
 	[PIDNS] = "pidns",
-	[USERNS] = "userns",
 	[UTSNS] = "utsns",
+	[USERNS] = "userns",
 };
 
-struct data {
+const int nscloneflags[] = {
+	[IPC] = CLONE_NEWIPC,
+	[MNTNS] = CLONE_NEWNS,
+	[NETNS] = CLONE_NEWNET,
+	[PIDNS] = CLONE_NEWPID,
+	[UTSNS] = CLONE_NEWUTS,
+	[USERNS] = CLONE_NEWUSER,
+};
+
+struct setns_data {
 	int nsfd[NS_NUM];
 	ino_t inum[NS_NUM];
 };
 
-int init_thread(struct data *data, int pid)
+int init_thread(struct setns_data *data, int pid)
 {
 	int i, fd;
 	char buff[50];
@@ -104,7 +125,7 @@ error:
 	return 1;
 }
 
-void cleanup_thread(struct data *data)
+void cleanup_thread(struct setns_data *data)
 {
 	int i;
 
@@ -112,7 +133,7 @@ void cleanup_thread(struct data *data)
 		close(data->nsfd[i]);
 }
 
-int change_ns(struct data *data, enum nsid id, int fd)
+int change_ns(struct setns_data *data, enum nsid id, int fd)
 {
 	struct stat sbuff;
 
@@ -133,10 +154,10 @@ int change_ns(struct data *data, enum nsid id, int fd)
 
 }
 
-int get_next_different_process(struct data *data, struct dirent **dent)
+int get_next_different_process(struct setns_data *data, struct dirent **dent)
 {
 	struct dirent *retval, cur;
-	struct data d;
+	struct setns_data d;
 	DIR *dirp;
 	int i, pid = -1;
 
@@ -209,16 +230,59 @@ static void *unshare_test(struct stresser_config *config)
 				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWNET),
 				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWUTS),
 				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWPID),
-//				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWUSER),
-//				      STRESSER_UNIT(50, _unshare_test, (CLONE_NEWNS|CLONE_NEWIPC|CLONE_NEWNET|CLONE_NEWUTS|CLONE_NEWPID|CLONE_NEWUSER)),
-				      STRESSER_UNIT(50, _unshare_test, (CLONE_NEWNS|CLONE_NEWIPC|CLONE_NEWNET|CLONE_NEWUTS|CLONE_NEWPID)),
+#ifdef HAS_USERNS
+				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWUSER),
+#endif
+				      STRESSER_UNIT(50, _unshare_test, ALL_NAMESPACES),
 				     };
 	int rc;
 
-	rc = stresser(config, set, 6, NULL);
+	rc = stresser(config, set, (sizeof(set) / sizeof(struct stresser_unit)), NULL);
 	if (rc)
 		return config;
 	return NULL;
+}
+
+static int _setns_random_unshare(void *data)
+{
+	int r, pid, rc;
+
+	srand(time(NULL));
+	r = rand() % NS_NUM;
+
+	pid = fork();
+
+	if (pid == -1)
+		return errno;
+
+	if (pid == 0) {
+		if (unshare(u))
+			return errno;
+		/* sleep for at least 5s */
+		sleep((rand() % 10) + 5);
+	} else {
+		if (wait(&rc) == -1)
+			return errno;
+		return rc;
+	}
+	return 0;
+}
+
+static int _setns_test(void *data)
+{
+	struct setns_data data;
+	rc = init_thread(&data, getpid());
+
+}
+
+static void *setns_test(struct stresser_config *config)
+{
+	struct setns_data data;
+	struct stresser_unit set[] = {
+				      STRESSER_UNIT(50, _setns_random_unshare, NULL),
+				      STRESSER_UNIT(100, _setns_test, NULL),
+				     };
+
 }
 
 const char *options = "sh";
