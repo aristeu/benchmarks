@@ -147,6 +147,8 @@ int stresser(struct stresser_config *cfg, struct stresser_unit *set,
 			set[u]._reserved--;
 			break;
 		}
+		if (priv[i].u->fnpriv)
+			priv[i].fnpriv = priv[i].u->fnpriv;
 	}
 
 	/* all initialized, start the threads */

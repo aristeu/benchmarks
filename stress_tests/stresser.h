@@ -51,6 +51,7 @@ struct stresser_unit {
 		unsigned char proportion;	/* 1-100 proportion this unit will run */
 	} d;					/* which value is used depends upon 'distribution' in config */
 	int (*fn)(void *priv);			/* function to be executed */
+	void *fnpriv;				/* override the global private info for this unit */
 	unsigned int _reserved;			/* do not use */
 };
 
