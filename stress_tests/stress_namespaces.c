@@ -2,26 +2,17 @@
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
-#define __USE_GNU 1
 #include <pthread.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sched.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/syscall.h>
 
 #include "stresser.h"
-
-#define NS_NUM 6
-enum nsid {
-	IPC = 0,
-	MNTNS,
-	NETNS,
-	PIDNS,
-	USERNS,
-	UTSNS,
-};
 
 #ifndef __NR_setns
 # ifdef __i386__
@@ -32,6 +23,39 @@ enum nsid {
 #define setns(a, b) syscall(__NR_setns, a, b)
 #endif
 
+#ifndef CLONE_NEWNS
+#define CLONE_NEWNS	0x00020000
+#endif
+
+#ifndef CLONE_NEWIPC
+#define CLONE_NEWIPC	0x08000000
+#endif
+
+#ifndef CLONE_NEWNET
+#define CLONE_NEWNET	0x40000000
+#endif
+
+#ifndef CLONE_NEWUTS
+#define CLONE_NEWUTS	0x04000000
+#endif
+
+#ifndef CLONE_NEWPID
+#define CLONE_NEWPID	0x20000000
+#endif
+
+#ifndef CLONE_NEWUSER
+#define CLONE_NEWUSER	0x10000000
+#endif
+
+#define NS_NUM 6
+enum nsid {
+	IPC = 0,
+	MNTNS,
+	NETNS,
+	PIDNS,
+	USERNS,
+	UTSNS,
+};
 
 const char *nsnames[] = {
 	[IPC] = "ipc",
@@ -150,36 +174,51 @@ int get_next_different_process(struct data *data, struct dirent **dent)
 	return -1;
 }
 
-
-static int _setns_stress_thread(void *data)
+static int _unshare_test(void *data)
 {
-	printf("one\n");
+	long u = (long)data;
+
+	/* unshare with CLONE_NEWPID requires a new process */
+	if (u & CLONE_NEWPID) {
+		int pid = fork(), rc;
+
+		if (pid == -1)
+			return errno;
+
+		if (pid == 0) {
+			if (unshare(u))
+				return errno;
+		} else {
+			if (wait(&rc) == -1)
+				return errno;
+			return rc;
+		}
+	} else {
+		if (unshare(u))
+			return errno;
+	}
 	return 0;
 }
 
-static int _setns_stress_thread2(void *data)
-{
-	printf("two\n");
-	return 0;
-}
-static int _setns_stress_thread3(void *data)
-{
-	printf("three\n");
-	return 0;
-}
-
-static int run_setns_stress(struct stresser_config *config)
+#define STRESSER_UNIT(n, f, priv) { .d.number = n, .fn = f, .fnpriv = (void *)priv, }
+static void *unshare_test(struct stresser_config *config)
 {
 	struct stresser_unit set[] = {
-				      { .d.chance = 2,
-					.fn = _setns_stress_thread, },
-				      { .d.chance = 5,
-					.fn = _setns_stress_thread2, },
-				      { .d.chance = 3,
-					.fn = _setns_stress_thread3, },
+				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWNS),
+				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWIPC),
+				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWNET),
+				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWUTS),
+				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWPID),
+//				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWUSER),
+//				      STRESSER_UNIT(50, _unshare_test, (CLONE_NEWNS|CLONE_NEWIPC|CLONE_NEWNET|CLONE_NEWUTS|CLONE_NEWPID|CLONE_NEWUSER)),
+				      STRESSER_UNIT(50, _unshare_test, (CLONE_NEWNS|CLONE_NEWIPC|CLONE_NEWNET|CLONE_NEWUTS|CLONE_NEWPID)),
 				     };
+	int rc;
 
-	return stresser(config, set, 3, NULL);
+	rc = stresser(config, set, 6, NULL);
+	if (rc)
+		return config;
+	return NULL;
 }
 
 const char *options = "sh";
@@ -187,11 +226,11 @@ int main(int argc, char *argv[])
 {
 	struct stresser_config cfg;
 
-	cfg.threads = 10;
-	cfg.distribution = STRESSD_RANDOM;
+	cfg.distribution = STRESSD_FIXED;
 	cfg.stress_type = STRESST_HORDE;
 
-	run_setns_stress(&cfg);
+	unshare_test(&cfg);
+
 	return 0;
 }
 
