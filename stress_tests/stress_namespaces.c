@@ -72,10 +72,10 @@ enum nsid {
 const char *nsnames[] = {
 	[IPC] = "ipc",
 	[MNTNS] = "mnt",
-	[NETNS] = "netns",
-	[PIDNS] = "pidns",
-	[UTSNS] = "utsns",
-	[USERNS] = "userns",
+	[NETNS] = "net",
+	[PIDNS] = "pid",
+	[UTSNS] = "uts",
+	[USERNS] = "user",
 };
 
 const int nscloneflags[] = {
@@ -101,17 +101,11 @@ int init_thread(struct setns_data *data, int pid)
 	for (i = 0; i < NS_NUM; i++) {
 		snprintf(buff, sizeof(buff), "/proc/%i/ns/%s", pid, nsnames[i]);
 		fd = open(buff, O_RDONLY);
-		if (fd < 0) {
-			fprintf(stderr, "Unable to open %s, pid %i (%s)\n",
-				buff, pid, strerror(errno));
+		if (fd < 0)
 			goto error;
-		}
 		data->nsfd[i] = fd;
-		if (fstat(fd, &sbuff)) {
-			fprintf(stderr, "Unable to stat %s (%s)\n", buff,
-				strerror(errno));
+		if (fstat(fd, &sbuff))
 			goto error;
-		}
 		data->inum[i] = sbuff.st_ino;
 	}
 	return 0;
@@ -122,7 +116,7 @@ error:
 		close(data->nsfd[i]);
 		data->nsfd[i] = -1;
 	}
-	return 1;
+	return errno;
 }
 
 void cleanup_thread(struct setns_data *data)
@@ -154,10 +148,19 @@ int change_ns(struct setns_data *data, enum nsid id, int fd)
 
 }
 
-int get_next_different_process(struct setns_data *data, struct dirent **dent)
+static int pid_dir_exists(int pid)
+{
+	struct stat s;
+	char buff[50];
+
+	sprintf(buff, "/proc/%i/ns", pid);
+
+	return !stat(buff, &s);
+}
+
+int get_next_different_process(struct setns_data *data, struct setns_data *output)
 {
 	struct dirent *retval, cur;
-	struct setns_data d;
 	DIR *dirp;
 	int i, pid = -1;
 
@@ -165,34 +168,38 @@ int get_next_different_process(struct setns_data *data, struct dirent **dent)
 	if (dirp == NULL)
 		return -1;
 	while (1) {
-		if (readdir_r(dirp, &cur, &retval)) {
+		if ((errno = readdir_r(dirp, &cur, &retval))) {
 			perror("Error reading directory entries");
 			closedir(dirp);
 			return -1;
 		}
-		if (retval == NULL) {
-			closedir(dirp);
-			return -1;
-		}
+		if (retval == NULL)
+			break;
+
 		pid = atoi(retval->d_name);
 		if (pid == 0)
 			continue;
-		if (init_thread(&d, pid)) {
-			closedir(dirp);
-			return -1;
+		if (init_thread(output, pid)) {
+			/* the process might just have disappeared, check */
+			int e = errno;
+			if (pid_dir_exists(pid)) {
+				closedir(dirp);
+				errno = e;
+				return -1;
+			}
+			continue;
 		}
 		for (i = 0; i < NS_NUM; i++) {
-			if (d.inum[i] != data->inum[i]) {
-				*dent = retval;
-				cleanup_thread(&d);
-				return pid;
+			if (output->inum[i] != data->inum[i]) {
+				closedir(dirp);
+				return i;
 			}
 		}
-		cleanup_thread(&d);
+		cleanup_thread(output);
 	}
 	closedir(dirp);
 
-	return -1;
+	return 0;
 }
 
 static int _unshare_test(void *data)
@@ -212,7 +219,7 @@ static int _unshare_test(void *data)
 		} else {
 			if (wait(&rc) == -1)
 				return errno;
-			return rc;
+			return WEXITSTATUS(rc);
 		}
 	} else {
 		if (unshare(u))
@@ -222,7 +229,7 @@ static int _unshare_test(void *data)
 }
 
 #define STRESSER_UNIT(n, f, priv) { .d.number = n, .fn = f, .fnpriv = (void *)priv, }
-static void *unshare_test(struct stresser_config *config)
+static int unshare_test(struct stresser_config *config)
 {
 	struct stresser_unit set[] = {
 				      STRESSER_UNIT(50, _unshare_test, CLONE_NEWNS),
@@ -239,8 +246,8 @@ static void *unshare_test(struct stresser_config *config)
 
 	rc = stresser(config, set, (sizeof(set) / sizeof(struct stresser_unit)), NULL);
 	if (rc)
-		return config;
-	return NULL;
+		return rc;
+	return 0;
 }
 
 static int _setns_random_unshare(void *data)
@@ -256,44 +263,92 @@ static int _setns_random_unshare(void *data)
 		return errno;
 
 	if (pid == 0) {
-		if (unshare(u))
+		if (unshare(r))
 			return errno;
 		/* sleep for at least 5s */
 		sleep((rand() % 10) + 5);
 	} else {
 		if (wait(&rc) == -1)
 			return errno;
-		return rc;
+		return WEXITSTATUS(rc);
 	}
 	return 0;
 }
 
-static int _setns_test(void *data)
+static int _setns_test(void *unused)
 {
-	struct setns_data data;
-	rc = init_thread(&data, getpid());
+	struct setns_data data, other;
+	int i, rc, pid, max = 20;
 
+	pid = fork();
+	if (pid < 0)
+		return errno;
+
+	if (pid == 0) {
+		rc = init_thread(&data, getpid());
+		if (rc)
+			exit(rc);
+
+		while (max--) {
+			i = get_next_different_process(&data, &other);
+			if (i < 0)
+				exit(errno);
+			if (i == 0)
+				break;
+			rc = change_ns(&data, i, other.nsfd[i]);
+			if (rc)
+				exit(errno);
+		}
+		exit(0);
+	}
+	if (wait(&rc) == -1)
+		return errno;
+	return WEXITSTATUS(rc);
 }
 
-static void *setns_test(struct stresser_config *config)
+static int setns_test(struct stresser_config *config)
 {
-	struct setns_data data;
-	struct stresser_unit set[] = {
+	struct stresser_unit set1[] = {
 				      STRESSER_UNIT(50, _setns_random_unshare, NULL),
+				     };
+	struct stresser_unit set2[] = {
 				      STRESSER_UNIT(100, _setns_test, NULL),
 				     };
+	int pid, rc, rc2;
 
+	pid = fork();
+	if (pid == -1)
+		return errno;
+	if (pid == 0) {
+		exit(stresser(config, set1, (sizeof(set1) / sizeof(struct stresser_unit)), NULL));
+	} else {
+		/* we just give the other units a bit of time */
+		sleep(2);
+		rc = stresser(config, set2, (sizeof(set2) / sizeof(struct stresser_unit)), NULL);
+		if (wait(&rc2) == -1)
+			return errno;
+		if (rc2)
+			return WEXITSTATUS(rc2);
+		if (rc)
+			return rc;
+	}
+
+	return 0;
 }
 
 const char *options = "sh";
 int main(int argc, char *argv[])
 {
 	struct stresser_config cfg;
+	int rc;
 
 	cfg.distribution = STRESSD_FIXED;
 	cfg.stress_type = STRESST_HORDE;
 
-	unshare_test(&cfg);
+	rc = unshare_test(&cfg);
+	printf("unshare test %s\n", rc? "FAILED":"passed");
+	rc = setns_test(&cfg);
+	printf("setns test %s\n", rc? "FAILED":"passed");
 
 	return 0;
 }
