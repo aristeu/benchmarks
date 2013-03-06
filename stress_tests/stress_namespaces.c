@@ -214,8 +214,21 @@ static int _unshare_test(void *data)
 			return errno;
 
 		if (pid == 0) {
+			int pid2;
+
 			if (unshare(u))
 				return errno;
+			/* it'll be only active if a new process is created */
+			pid2 = fork();
+			if (pid2 == 0)
+				exit(123);
+			else {
+				if (wait(&rc) == -1)
+					exit(errno);
+				if (WEXITSTATUS(rc) != 123)
+					exit(1);
+			}
+			exit (0);
 		} else {
 			if (wait(&rc) == -1)
 				return errno;
