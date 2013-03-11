@@ -360,9 +360,11 @@ int main(int argc, char *argv[])
 
 	rc = unshare_test(&cfg);
 	printf("unshare test %s\n", rc? "FAILED":"passed");
+	if (rc)
+		return rc;
 	rc = setns_test(&cfg);
 	printf("setns test %s\n", rc? "FAILED":"passed");
 
-	return 0;
+	return rc;
 }
 
