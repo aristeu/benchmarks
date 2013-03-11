@@ -132,7 +132,7 @@ int change_ns(struct setns_data *data, enum nsid id, int fd)
 	struct stat sbuff;
 
 	if (fstat(fd, &sbuff)) {
-		perror ("change_ns: unable to stat new fd");
+		perror("change_ns: unable to stat new fd");
 		return 1;
 	}
 	if (setns(fd, 0)) {
@@ -304,12 +304,15 @@ static int _setns_test(void *unused)
 
 		while (max--) {
 			i = get_next_different_process(&data, &other);
-			if (i < 0)
-				exit(errno);
+			if (i < 0) {
+				if (errno != ENOENT)
+					exit(errno);
+				continue;
+			}
 			if (i == 0)
 				break;
 			rc = change_ns(&data, i, other.nsfd[i]);
-			if (rc)
+			if (rc && errno != ENOENT)
 				exit(errno);
 		}
 		exit(0);
