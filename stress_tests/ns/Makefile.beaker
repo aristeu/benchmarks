@@ -1,0 +1,64 @@
+CFLAGS += -Wall -g
+
+# The name of the package under test
+PACKAGE_NAME=kernel
+
+# The toplevel namespace within which the test lives.
+TOPLEVEL_NAMESPACE=/$(PACKAGE_NAME)
+
+# The version of the test rpm that gets
+#  created / submitted
+export TESTVERSION=1.0
+
+# The path of the test below the package
+RELATIVE_PATH=stress/ns_stress
+
+# The relative path name to the test 
+export TEST=$(TOPLEVEL_NAMESPACE)/$(RELATIVE_PATH)
+
+FILES=	$(METADATA)		\
+	stresser.c		\
+	stresser.h		\
+	stress_namespaces.c	\
+	runtest.sh		\
+	Makefile
+
+clean:
+	$(RM) *~ rm $(METADATA)
+	rm -rf $(TARGET) rh-tests-kernel-*.rpm
+
+stress_namespaces_objects := stresser.o
+stress_namespaces: stress_namespaces.o $(stress_namespaces_objects)
+	gcc -lpthread -Wall -o $@ $< $(stress_namespaces_objects)
+
+run: build
+	chmod +x ./runtest.sh
+	./runtest.sh
+
+build: $(METADATA) $(stress_namespaces)
+
+# Include a global make rules file
+include /usr/share/rhts/lib/rhts-make.include
+
+showmeta: $(METADATA)
+	@cat $(METADATA)
+	@rhts-lint $(METADATA)
+
+$(METADATA):
+	touch $(METADATA)
+	@echo "Name:		$(TEST)"	> $(METADATA)
+	@echo "Description:	Simple namespaces stress" >> $(METADATA)
+	@echo "Path:		$(TEST_DIR)"	>> $(METADATA)
+	@echo "TestTime:	1m"		>> $(METADATA)
+	@echo "TestVersion:	$(TESTVERSION)"	>> $(METADATA)
+	@echo "Releases:	FIXME" >> $(METADATA)
+	@echo "#Architectures:	All"		>> $(METADATA)
+	@echo "Destructive:	no"		>> $(METADATA)
+	@echo "Type:            KernelTier1"    >> $(METADATA)
+	@echo "Priority:	Normal"		>> $(METADATA)
+	@echo "RunFor:		kernel"		>> $(METADATA)
+	@echo "Requires:	kernel-devel"	>> $(METADATA)
+	@echo "Requires:	gcc"            >> $(METADATA)
+	@echo "Requires:	make"           >> $(METADATA)
+	@echo "Owner:		Aristeu Rozanski <aris@redhat.com>" >> $(METADATA)
+	@echo "License:		GPLv2"		>> $(METADATA)
