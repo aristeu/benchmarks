@@ -10,5 +10,7 @@ function die
 cd /tmp; wget $URL || die "wget"; 
 tar xfz sysbench-$VERSION.tar.gz || die "tar";
 cd sysbench-$VERSION/ || die "directory not found" ;
-(./configure && echo=/bin/echo make) || die "build";
-
+(./configure && echo=/bin/echo make install) || die "build";
+service mysql start;
+echo "create database sbtest;" | mysql -u root;
+sysbench --test=oltp --mysql-table-engine=myisam --oltp-table-size=1000000 --mysql-host=localhost --mysql-user=root prepare
