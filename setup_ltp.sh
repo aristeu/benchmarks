@@ -12,4 +12,5 @@ make autotools >/dev/null || die "autotools";
 ./configure >/dev/null || die "configure";
 make >/dev/null || die "build error";
 make install || die "installation error";
+rm -Rf /tmp/ltp
 

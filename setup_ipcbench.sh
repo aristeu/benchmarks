@@ -7,4 +7,5 @@ function die
 }
 
 git clone http://github.com/avsm/ipc-bench.git /tmp/ipcbench || die "unable to clone";
-yum install numactl-devel
+yum install -y numactl-devel
+mv /tmp/ipcbench /opt/
