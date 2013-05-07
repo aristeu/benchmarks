@@ -7,12 +7,13 @@ function die
 	exit 1;
 }
 
+rm -Rf /tmp/sysbench-$VERSION;
 yum install -y mysql-server mysql-devel
-cd /tmp; wget -O systench-$VERSION.tar.gz $URL || die "wget"; 
+cd /tmp; wget -O sysbench-$VERSION.tar.gz $URL || die "wget"; 
 tar xfz sysbench-$VERSION.tar.gz || die "tar";
 cd sysbench-$VERSION/ || die "directory not found" ;
 (./configure && echo=/bin/echo make install) || die "build";
 rm -Rf /tmp/systench-$VERSION/
-service mysql start;
+service mysqld start;
 echo "create database sbtest;" | mysql -u root;
 sysbench --test=oltp --mysql-table-engine=myisam --oltp-table-size=1000000 --mysql-host=localhost --mysql-user=root prepare

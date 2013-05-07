@@ -6,6 +6,8 @@ function die
 	exit 1;
 }
 
+mkdir -p /opt;
+rm -Rf /tmp/ltp /opt/ltp;
 git clone git://ltp.git.sourceforge.net/gitroot/ltp/ltp /tmp/ltp || die "unable to clone";
 cd /tmp/ltp || die "directory not found" ;
 make autotools >/dev/null || die "autotools";
