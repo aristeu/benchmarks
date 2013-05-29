@@ -13,7 +13,7 @@ trap control_c SIGINT;
 echo "ipcbench";
 cd /opt/ipcbench;
 ./run.py >/tmp/log;
-file=$(cat log | grep "Output written" | sed -e "s/.*Output written as //");
+file=$(cat /tmp/log | grep "Output written" | sed -e "s/.*Output written as //");
 mv $file $OUTPUT/ipcbench.tar.gz
 
 # lmbench3:
