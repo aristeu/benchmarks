@@ -51,19 +51,19 @@ static int exit_thread(void *priv)
 static struct stresser_config config = {
 	.threads = 100,
 	.stress_type = STRESST_HORDE,
-	.distribution = STRESSD_PROP,
+	.distribution = STRESSD_FIXED,
 };
 
 static struct stresser_unit units[] = {
-	{ .d = 1, .fn = rmid_thread, },
-	{ .d = 98, .fn = sem_get_thread, },
-	{ .d = 1, .fn = exit_thread, },
+	{ .d.number = 1, .fn = rmid_thread, },
+	{ .d.number = 98, .fn = sem_get_thread, },
+	{ .d.number = 1, .fn = exit_thread, },
 };
 
 static int launcher(struct stresser_config *config,
 		    struct stresser_unit *units, int num)
 {
-	return stresser(config, units, 3, &priv_info);
+	return stresser(config, units, num, &priv_info);
 }
 
 int main(int argc, char *argv[])
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 		if (pid == 0)
-			return launcher(&config, units, 2);
+			return launcher(&config, units, 3);
 		wait(&status);
 		printf(".");
 		fflush(stdout);
