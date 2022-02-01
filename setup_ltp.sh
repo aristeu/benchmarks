@@ -1,4 +1,5 @@
 #!/bin/bash
+URL=https://github.com/linux-test-project/ltp;
 
 function die
 {
@@ -8,7 +9,7 @@ function die
 
 mkdir -p /opt;
 rm -Rf /tmp/ltp /opt/ltp;
-git clone git://ltp.git.sourceforge.net/gitroot/ltp/ltp /tmp/ltp || die "unable to clone";
+git clone $URL /tmp/ltp || die "unable to clone";
 cd /tmp/ltp || die "directory not found" ;
 make autotools >/dev/null || die "autotools";
 ./configure >/dev/null || die "configure";
